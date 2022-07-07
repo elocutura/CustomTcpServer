@@ -13,6 +13,7 @@ namespace CTCP
         private IPEndPoint remoteEndPoint;
 
         private CTCPServer server = null;
+        private bool connected = false;
         private CTCPConnection(TcpClient client)
         { 
             this.client = client;
@@ -37,6 +38,7 @@ namespace CTCP
 
         internal void Start()
         {
+            connected = true;
             OnConnected();
 
             stream = client.GetStream();
@@ -77,7 +79,7 @@ namespace CTCP
                 int size;
                 int headerSize = CTCPPacket.GetHeaderSize();
                 byte[] headerBuff = new byte[headerSize];
-                while (true)
+                while (connected)
                 {
                     if (stream.Read(headerBuff, 0, headerSize) > 0)
                     {
@@ -106,6 +108,7 @@ namespace CTCP
 
         public void Disconnect()
         {
+            connected = false;
             OnDisconnected();
             stream.Close();
             client.Close();
