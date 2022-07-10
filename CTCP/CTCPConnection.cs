@@ -87,10 +87,23 @@ namespace CTCP
 
                         if (size > 0)
                         {
-                            var packetPayload = new byte[size];
-                            stream.Read(packetPayload, 0, size);
+                            try
+                            {
+                                var packetPayload = new byte[size];
+                                int bytesRead = stream.Read(packetPayload, 0, size);
+                                var newSize = size - bytesRead;
+                                while (bytesRead != size)
+                                {
+                                    bytesRead += stream.Read(packetPayload, bytesRead, newSize);
+                                    newSize -= bytesRead;
+                                }
 
-                            OnPayloadReceived(packetPayload);
+                                OnPayloadReceived(packetPayload);
+                            }
+                            catch (Exception ex)
+                            {
+                                OnError(ex);
+                            }
                         }
                     }
                 }
@@ -108,14 +121,22 @@ namespace CTCP
 
         public void Disconnect()
         {
-            connected = false;
+            if (!connected)
+                return;
+
             OnDisconnected();
+            client.Client.Shutdown(SocketShutdown.Both);
+            client.Client.Disconnect(true);
+            client.Client.Dispose();
             stream.Close();
             client.Close();
             client.Dispose();
 
             if (server != null)
+            {
                 server.OnDisconnect(this);
+            }
+            connected = false;
         }
 
         public virtual void OnPayloadReceived(byte[] payload)
