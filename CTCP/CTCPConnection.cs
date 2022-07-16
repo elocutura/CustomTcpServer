@@ -91,10 +91,12 @@ namespace CTCP
                             {
                                 var packetPayload = new byte[size];
                                 int bytesRead = stream.Read(packetPayload, 0, size);
+                                int cumulatedBytesRead = bytesRead;
                                 var newSize = size - bytesRead;
-                                while (bytesRead != size)
+                                while (cumulatedBytesRead != size)
                                 {
-                                    bytesRead += stream.Read(packetPayload, bytesRead, newSize);
+                                    bytesRead = stream.Read(packetPayload, cumulatedBytesRead, newSize);
+                                    cumulatedBytesRead += bytesRead;
                                     newSize -= bytesRead;
                                 }
 
