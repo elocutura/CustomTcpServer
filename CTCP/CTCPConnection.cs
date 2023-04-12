@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace CTCP
 {
@@ -14,6 +14,7 @@ namespace CTCP
 
         private CTCPServer server = null;
         private bool connected = false;
+
         private CTCPConnection(TcpClient client)
         { 
             this.client = client;
@@ -39,6 +40,7 @@ namespace CTCP
         internal void Start()
         {
             connected = true;
+
             OnConnected();
 
             stream = client.GetStream();
@@ -48,13 +50,13 @@ namespace CTCP
 
         public bool Send(byte[] payload)
         {
-            CTCPPacket packet = new CTCPPacket(payload);
-
             Task.Run(() =>
             {
                 try
                 {
-                    client.Client.Send(packet.GetBuffer());
+                    CTCPPacket packet = new CTCPPacket(payload);
+                    if (client.Client != null)
+                        client.Client.Send(packet.GetBuffer());
                 }
                 catch (SocketException ex)
                 {
@@ -72,13 +74,20 @@ namespace CTCP
             return true;
         }
 
+        int size;
+        int headerSize = CTCPPacket.GetHeaderSize();
+        byte[] headerBuff;
+        byte[] packetPayload;
+        int bytesRead;
+        int cumulatedBytesRead;
+        int newSize;
+
         private void ProcessStream()
         {
             try
             {
-                int size;
-                int headerSize = CTCPPacket.GetHeaderSize();
-                byte[] headerBuff = new byte[headerSize];
+                
+                headerBuff = new byte[headerSize];
                 while (connected)
                 {
                     if (stream.Read(headerBuff, 0, headerSize) > 0)
@@ -89,10 +98,10 @@ namespace CTCP
                         {
                             try
                             {
-                                var packetPayload = new byte[size];
-                                int bytesRead = stream.Read(packetPayload, 0, size);
-                                int cumulatedBytesRead = bytesRead;
-                                var newSize = size - bytesRead;
+                                packetPayload = new byte[size];
+                                bytesRead = stream.Read(packetPayload, 0, size);
+                                cumulatedBytesRead = bytesRead;
+                                newSize = size - bytesRead;
                                 while (cumulatedBytesRead != size)
                                 {
                                     bytesRead = stream.Read(packetPayload, cumulatedBytesRead, newSize);
@@ -103,7 +112,7 @@ namespace CTCP
                                 OnPayloadReceived(packetPayload);
                             }
                             catch (Exception ex)
-                            {
+                            { 
                                 OnError(ex);
                             }
                         }
@@ -126,19 +135,15 @@ namespace CTCP
             if (!connected)
                 return;
 
-            OnDisconnected();
-            client.Client.Shutdown(SocketShutdown.Both);
-            client.Client.Disconnect(true);
-            client.Client.Dispose();
-            stream.Close();
-            client.Close();
-            client.Dispose();
+            connected = false;
 
             if (server != null)
-            {
-                server.OnDisconnect(this);
+            { 
+                server.OnDisconnect(this);  
             }
-            connected = false;
+            stream.Close();
+            client.Close();
+            OnDisconnected();
         }
 
         public virtual void OnPayloadReceived(byte[] payload)
@@ -154,6 +159,5 @@ namespace CTCP
         {
             Console.WriteLine("Exception caught in TCP client connection : " + ex.ToString());
         }
-
     }
 }
